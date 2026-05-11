@@ -189,7 +189,7 @@ if archivo_encontrado:
 
             supervisor_top = df_desp.iloc[0][c_supervisor] if not df_desp.empty else "N/A"
             cantidad_top = df_desp.iloc[0][c_cant_desp] if not df_desp.empty else 0
-            st.success(f"🏆 El supervisor con más desperdicio es: **{supervisor_top}** con **{cantidad_top:,.2f} Tn**")
+            st.success(f"😢 El supervisor con más desperdicio es: **{supervisor_top}** con **{cantidad_top:,.2f} Tn**")
         else:
             st.warning("⚠️ No se encontraron las columnas de supervisor o cantidad de desperdicio en el Excel")
 

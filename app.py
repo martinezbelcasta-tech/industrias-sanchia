@@ -1,113 +1,132 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
-from PIL import Image
+import plotly.express as px
 
-# 1. CONFIGURACIÓN DE LA APP
-st.set_page_config(page_title="Industrias Sanchia - Sistema Integral", layout="wide")
+# 1. CONFIGURACIÓN Y ESTILOS
+st.set_page_config(page_title="Sanchia Dashboard Premium", layout="wide")
 
-# --- ENCABEZADO ---
-col_l, col_t = st.columns([1, 5])
-with col_l:
-    try:
-        img = Image.open('logo tipo industrias.jpg')
-        st.image(img, width=130)
-    except:
-        st.write("🏭")
+# Estilo para las tarjetas de colores (resaltando el número)
+def crear_tarjeta(titulo, valor, color_borde, unidad=""):
+    st.markdown(f"""
+        <div style="background-color: #ffffff; padding: 15px; border-radius: 10px; border-left: 6px solid {color_borde}; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 15px;">
+            <p style="margin:0; font-size: 13px; color: #666; font-weight: bold; text-transform: uppercase;">{titulo}</p>
+            <p style="margin:0; font-size: 28px; font-weight: bold; color: {color_borde};">{valor} <span style="font-size:14px;">{unidad}</span></p>
+        </div>
+    """, unsafe_allow_html=True)
 
-with col_t:
-    st.markdown("<h1>Industrias Sanchia</h1>", unsafe_allow_html=True)
+st.title("🚀 Sistema Integral de Control de Producción")
+st.markdown("---")
 
-st.divider()
-
-# --- MENÚ DE NAVEGACIÓN ---
+# 2. CARGA DE DATOS
+archivo = st.sidebar.file_uploader("Subir Data app.xlsx", type=["xlsx"])
 st.sidebar.title("🚀 Menú Principal")
-pagina = st.sidebar.radio("Ir a:", ["📊 Dashboard General", "🗑️ Análisis de Desperdicios"])
+pagina = st.sidebar.radio("Ir a:", ["📈 Dashboard General", "🗑️ Análisis de Desperdicios"])
 
-st.sidebar.divider()
-
-# --- CONFIGURACIÓN DE PERIODO ---
-st.sidebar.header("📅 Configuración de Periodo")
-meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-mes_sel = st.sidebar.selectbox("Selecciona el Mes:", meses, index=4)
-año_sel = st.sidebar.number_input("Selecciona el Año:", min_value=2024, max_value=2030, value=2026)
-dias_proyeccion = st.sidebar.slider(f"Días a proyectar ({mes_sel}):", 1, 31, 31)
-
-# --- CARGA DE DATOS ---
-archivo = st.file_uploader("Sube tu archivo 'Data app.xlsx'", type=["xlsx"])
-
-if archivo is not None:
+if archivo:
     df = pd.read_excel(archivo)
-    df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
-    df_activos = df[df.iloc[:, 1] > 0].copy()
-    n_dias = len(df_activos)
+    df.columns = [str(c).strip().upper() for c in df.columns]
 
-    # --- PÁGINA 1: DASHBOARD GENERAL ---
-    if pagina == "📊 Dashboard General":
-        st.header(f"Resumen General - {mes_sel} {año_sel}")
-        
-        # Cálculos
-        t_efec = df.iloc[:, 1].sum()
-        t_mala = df.iloc[:, 2].sum()
-        t_reba = df.iloc[:, 3].sum()
-        t_cons = df.iloc[:, 4].sum()
+    # Detección de columnas
+    def buscar_col(lista_posibles):
+        for p in lista_posibles:
+            for col in df.columns:
+                if p in col: return col
+        return None
 
-        if n_dias > 0:
-            p_efec, p_cons = t_efec / n_dias, t_cons / n_dias
-            p_mala, p_reba = t_mala / n_dias, t_reba / n_dias
-            pr_efec, pr_cons = p_efec * dias_proyeccion, p_cons * dias_proyeccion
-            pr_mala, pr_reba = p_mala * dias_proyeccion, p_reba * dias_proyeccion
-        else:
-            pr_efec = pr_cons = pr_mala = pr_reba = p_efec = p_cons = p_mala = p_reba = 0
+    c_fecha = buscar_col(["FECHA"])
+    c_efec = buscar_col(["TON EFECTIVAS", "EFECTIVAS"])
+    c_cons = buscar_col(["TOTAL DE CONSUMO", "CONSUMO"])
+    c_mala = buscar_col(["PIEZA MALA KG", "MALA"])
+    c_reba = buscar_col(["REBABA KG", "REBABA"])
+    c_desp = buscar_col(["DESPERDICIO"])
 
-        # BLOQUE 1: PROYECCIONES
-        st.subheader("📈 Proyecciones al Cierre")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("PROY. EFECTIVAS (Tn)", f"{pr_efec:,.2f}")
-        c2.metric("PROY. CONSUMO (Tn)", f"{pr_cons:,.2f}")
-        c3.metric("PROY. PIEZA MALA (Kg)", f"{pr_mala:,.2f}")
-        c4.metric("PROY. REBABA (Kg)", f"{pr_reba:,.2f}")
-        
-        st.divider()
+    if c_fecha:
+        df[c_fecha] = pd.to_datetime(df[c_fecha])
+        meses_dict = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio",
+                      7:"Julio", 8:"Agosto", 9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"}
+        df["MES_NOMBRE"] = df[c_fecha].dt.month.map(meses_dict)
+        st.sidebar.markdown("---")
+        mes_sel = st.sidebar.selectbox("Selecciona el Mes:", df["MES_NOMBRE"].unique())
+        df_filtrado = df[df["MES_NOMBRE"] == mes_sel].copy()
+    else:
+        df_filtrado = df.copy()
 
-        # BLOQUE 2: PROMEDIOS
-        st.subheader("📊 Rendimiento Diario Promedio")
-        p1, p2, p3, p4 = st.columns(4)
-        p1.metric("Prom. Efectivas", f"{p_efec:,.2f} Tn/d")
-        p2.metric("Prom. Consumo", f"{p_cons:,.2f} Tn/d")
-        p3.metric("Prom. Pieza Mala", f"{p_mala:,.2f} Kg/d")
-        p4.metric("Prom. Rebaba", f"{p_reba:,.2f} Kg/d")
+    dias_proyectar = st.sidebar.slider("Días totales del mes para proyección:", 1, 31, 30)
 
-        st.divider()
+    if pagina == "📈 Dashboard General" and not df_filtrado.empty:
+        # CÁLCULOS
+        t_efec = df_filtrado[c_efec].sum() if c_efec else 0
+        t_cons = df_filtrado[c_cons].sum() if c_cons else 0
+        t_mala = df_filtrado[c_mala].sum() if c_mala else 0
+        t_reba = df_filtrado[c_reba].sum() if c_reba else 0
+        df_op = df_filtrado[df_filtrado[c_efec] > 0] if c_efec else df_filtrado
+        d_op = max(len(df_op), 1)
+        p_efec, p_cons = t_efec / d_op, t_cons / d_op
+        p_mala, p_reba = t_mala / d_op, t_reba / d_op
 
-        # BLOQUE 3: TOTALES ACUMULADOS (RECUPERADOS)
-        st.subheader(f"📁 Real Acumulado {mes_sel}")
-        a1, a2, a3, a4 = st.columns(4)
-        a1.metric("Total Efectivas", f"{t_efec:,.2f} Tn")
-        a2.metric("Total Consumo", f"{t_cons:,.2f} Tn")
-        a3.metric("Total Mala", f"{t_mala:,.2f} Kg")
-        a4.metric("Total Rebaba", f"{t_reba:,.2f} Kg")
+        # FILA 1: PROYECCIONES
+        st.subheader(f"📈 Proyecciones al Cierre")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1: crear_tarjeta("Proy. Efectivas", f"{p_efec * dias_proyectar:,.2f}", "#1E88E5", "Tn")
+        with col2: crear_tarjeta("Proy. Consumo", f"{p_cons * dias_proyectar:,.2f}", "#1E88E5", "Tn")
+        with col3: crear_tarjeta("Proy. Mala", f"{p_mala * dias_proyectar:,.2f}", "#1E88E5", "Kg")
+        with col4: crear_tarjeta("Proy. Rebaba", f"{p_reba * dias_proyectar:,.2f}", "#1E88E5", "Kg")
 
-        st.divider()
+        # FILA 2: PROMEDIOS
+        st.subheader(f"📊 Promedio Diario")
+        col5, col6, col7, col8 = st.columns(4)
+        with col5: crear_tarjeta("Prom. Efectivas", f"{p_efec:,.2f}", "#43A047", "Tn/d")
+        with col6: crear_tarjeta("Prom. Consumo", f"{p_cons:,.2f}", "#43A047", "Tn/d")
+        with col7: crear_tarjeta("Prom. Mala", f"{p_mala:,.2f}", "#43A047", "Kg/d")
+        with col8: crear_tarjeta("Prom. Rebaba", f"{p_reba:,.2f}", "#43A047", "Kg/d")
 
-        # BLOQUE 4: CONSULTA POR FECHA
+        # FILA 3: REAL ACUMULADO
+        st.subheader(f"📁 Real Acumulado")
+        col9, col10, col11, col12 = st.columns(4)
+        with col9: crear_tarjeta("Total Efectivas", f"{t_efec:,.2f}", "#FB8C00", "Tn")
+        with col10: crear_tarjeta("Total Consumo", f"{t_cons:,.2f}", "#FB8C00", "Tn")
+        with col11: crear_tarjeta("Total Mala", f"{t_mala:,.2f}", "#FB8C00", "Kg")
+        with col12: crear_tarjeta("Total Rebaba", f"{t_reba:,.2f}", "#FB8C00", "Kg")
+
+        st.markdown("---")
+
+        # GRÁFICA Y TABLA (UNIFICADOS)
+        st.subheader("📊 Gráfica de Tendencia y Datos Diarios")
+        opciones_v = {c_efec: "Efectivas", c_cons: "Consumo", c_mala: "Mala (Kg)", c_reba: "Rebaba (Kg)"}
+        vars_sel = st.multiselect("Variables:", options=list(opciones_v.keys()), default=[c_efec], format_func=lambda x: opciones_v[x])
+
+        if vars_sel:
+            df_plot = df_filtrado.copy()
+            df_plot[c_fecha] = df_plot[c_fecha].dt.strftime('%d-%m-%Y')
+            
+            # Gráfica
+            fig = px.bar(df_plot, x=c_fecha, y=vars_sel, barmode="group", text_auto='.2f')
+            fig.update_traces(textfont_size=24, textposition="outside", cliponaxis=False)
+            fig.update_layout(height=500, margin=dict(t=50, b=0))
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Tabla (Justo debajo de la gráfica)
+            st.markdown("### 📋 Datos Detallados por Día")
+            df_tabla = df_filtrado[[c_fecha] + vars_sel].copy()
+            df_tabla[c_fecha] = df_tabla[c_fecha].dt.strftime('%d-%m-%Y')
+            st.dataframe(df_tabla.style.format({col: "{:,.2f}" for col in vars_sel}), use_container_width=True)
+
+        st.markdown("---")
+
+        # DETALLE POR FECHA (TAL CUAL LA IMAGEN)
         st.subheader("📅 Detalle por Fecha")
-        df['Fecha_Txt'] = df.iloc[:, 0].dt.strftime('%Y-%m-%d')
-        dia_sel = st.selectbox("Selecciona una fecha:", df['Fecha_Txt'].unique())
-        f = df[df['Fecha_Txt'] == dia_sel].iloc[0]
-        d1, d2, d3, d4, d5 = st.columns(5)
-        d1.metric("Buenas (Tn)", f"{f.iloc[1]:,.2f}")
-        d2.metric("Consumo (Tn)", f"{f.iloc[4]:,.2f}")
-        d3.metric("Mala (Kg)", f"{f.iloc[2]:,.2f}")
-        d4.metric("Rebaba (Kg)", f"{f.iloc[3]:,.2f}")
-        val_p = f.iloc[5] * 100 if f.iloc[5] < 1 else f.iloc[5]
-        d5.metric("Desperdicio", f"{val_p:,.2f}%")
-
-    # --- PÁGINA 2: ANÁLISIS DE DESPERDICIOS ---
-    elif pagina == "🗑️ Análisis de Desperdicios":
-        st.header(f"🗑️ Análisis de Desperdicios - {mes_sel}")
-        st.info("¡Sección lista para tus instrucciones!")
-        # Aquí empezaremos a trabajar los detalles de desperdicio que me digas
+        fecha_sel = st.selectbox("Selecciona una fecha:", df_filtrado[c_fecha].dt.date.unique())
+        df_dia = df_filtrado[df_filtrado[c_fecha].dt.date == fecha_sel]
+        
+        if not df_dia.empty:
+            d1, d2, d3, d4, d5 = st.columns(5)
+            with d1: crear_tarjeta("Buenas (Tn)", f"{df_dia[c_efec].values[0]:,.2f}", "#607D8B")
+            with d2: crear_tarjeta("Consumo (Tn)", f"{df_dia[c_cons].values[0]:,.2f}", "#607D8B")
+            with d3: crear_tarjeta("Mala (Kg)", f"{df_dia[c_mala].values[0]:,.2f}", "#607D8B")
+            with d4: crear_tarjeta("Rebaba (Kg)", f"{df_dia[c_reba].values[0]:,.2f}", "#607D8B")
+            # El Desperdicio en % como en tu imagen
+            valor_desp = df_dia[c_desp].values[0] if c_desp else 0
+            with d5: crear_tarjeta("Desperdicio", f"{valor_desp * 100:,.2f}" if valor_desp < 1 else f"{valor_desp:,.2f}", "#D32F2F", "%")
 
 else:
-    st.info(f"Sube el archivo para iniciar Industrias Sanchia.")
+    st.info("👋 Sube el archivo Excel para ver el Dashboard restaurado.")

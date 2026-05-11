@@ -7,14 +7,20 @@ from datetime import datetime
 st.set_page_config(page_title="Sanchia Dashboard Premium", layout="wide")
 
 NOMBRE_ARCHIVO = "Data app.xlsx"
+GOOGLE_SHEETS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTpNGTPZQeOsEDX-n3rQe9MSt0O8Gi3wOMq2Alphcz-J9v5sWJYvvbE70UxmFAngQ/pub?output=xlsx"
 
 def cargar_datos():
     try:
-        df = pd.read_excel(NOMBRE_ARCHIVO)
+        df = pd.read_excel(GOOGLE_SHEETS_URL)
         df.columns = [str(c).strip().upper() for c in df.columns]
         return df, True
-    except FileNotFoundError:
-        return None, False
+    except Exception as e:
+        try:
+            df = pd.read_excel(NOMBRE_ARCHIVO)
+            df.columns = [str(c).strip().upper() for c in df.columns]
+            return df, True
+        except FileNotFoundError:
+            return None, False
 
 # Función para mostrar tarjetas
 def crear_tarjeta(titulo, valor, color_borde, unidad=""):

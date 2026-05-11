@@ -11,7 +11,8 @@ GOOGLE_SHEETS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTpNGTPZQeO
 
 def cargar_datos():
     try:
-        df = pd.read_excel(GOOGLE_SHEETS_URL)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        df = pd.read_excel(GOOGLE_SHEETS_URL, engine="openpyxl")
         df.columns = [str(c).strip().upper() for c in df.columns]
         return df, True
     except Exception as e:

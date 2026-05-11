@@ -7,21 +7,14 @@ from datetime import datetime
 st.set_page_config(page_title="Sanchia Dashboard Premium", layout="wide")
 
 NOMBRE_ARCHIVO = "Data app.xlsx"
-GOOGLE_SHEETS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTpNGTPZQeOsEDX-n3rQe9MSt0O8Gi3wOMq2Alphcz-J9v5sWJYvvbE70UxmFAngQ/pub?output=xlsx"
 
 def cargar_datos():
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        df = pd.read_excel(GOOGLE_SHEETS_URL, engine="openpyxl")
+        df = pd.read_excel(NOMBRE_ARCHIVO)
         df.columns = [str(c).strip().upper() for c in df.columns]
         return df, True
-    except Exception as e:
-        try:
-            df = pd.read_excel(NOMBRE_ARCHIVO)
-            df.columns = [str(c).strip().upper() for c in df.columns]
-            return df, True
-        except FileNotFoundError:
-            return None, False
+    except FileNotFoundError:
+        return None, False
 
 # Función para mostrar tarjetas
 def crear_tarjeta(titulo, valor, color_borde, unidad=""):
@@ -63,10 +56,6 @@ if archivo_encontrado:
     c_desp = buscar_col(["DESPERDICIO"])
     c_supervisor = buscar_col(["SUPERVISOR", "SUPERV"])
     c_cant_desp = buscar_col(["CANTIDAD GENERADA", "GENERADA"])
-
-    for col in [c_efec, c_cons, c_mala, c_reba, c_desp, c_cant_desp]:
-        if col:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
     if c_fecha:
         df[c_fecha] = pd.to_datetime(df[c_fecha])

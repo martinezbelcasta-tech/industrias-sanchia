@@ -64,6 +64,10 @@ if archivo_encontrado:
     c_supervisor = buscar_col(["SUPERVISOR", "SUPERV"])
     c_cant_desp = buscar_col(["CANTIDAD GENERADA", "GENERADA"])
 
+    for col in [c_efec, c_cons, c_mala, c_reba, c_desp, c_cant_desp]:
+        if col:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
     if c_fecha:
         df[c_fecha] = pd.to_datetime(df[c_fecha])
         meses_dict = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio",

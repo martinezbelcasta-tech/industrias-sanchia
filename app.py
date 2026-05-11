@@ -1,11 +1,22 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from datetime import datetime
 
 # 1. CONFIGURACIÓN Y ESTILOS
 st.set_page_config(page_title="Sanchia Dashboard Premium", layout="wide")
 
-# Estilo para las tarjetas de colores (resaltando el número)
+NOMBRE_ARCHIVO = "Data app.xlsx"
+
+def cargar_datos():
+    try:
+        df = pd.read_excel(NOMBRE_ARCHIVO)
+        df.columns = [str(c).strip().upper() for c in df.columns]
+        return df, True
+    except FileNotFoundError:
+        return None, False
+
+# Función para mostrar tarjetas
 def crear_tarjeta(titulo, valor, color_borde, unidad=""):
     st.markdown(f"""
         <div style="background-color: #ffffff; padding: 15px; border-radius: 10px; border-left: 6px solid {color_borde}; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); margin-bottom: 15px;">
@@ -14,17 +25,21 @@ def crear_tarjeta(titulo, valor, color_borde, unidad=""):
         </div>
     """, unsafe_allow_html=True)
 
-st.title("🚀 Sistema Integral de Control de Producción")
+st.image("logo tipo industrias.jpg", width=200)
 st.markdown("---")
 
-# 2. CARGA DE DATOS
-archivo = st.sidebar.file_uploader("Subir Data app.xlsx", type=["xlsx"])
-st.sidebar.title("🚀 Menú Principal")
+# 2. CARGA DE DATOS AUTOMÁTICA
+st.sidebar.title("Menú Principal")
 pagina = st.sidebar.radio("Ir a:", ["📈 Dashboard General", "🗑️ Análisis de Desperdicios"])
 
-if archivo:
-    df = pd.read_excel(archivo)
-    df.columns = [str(c).strip().upper() for c in df.columns]
+df, archivo_encontrado = cargar_datos()
+
+if archivo_encontrado:
+    st.sidebar.success(f"✓ {NOMBRE_ARCHIVO} cargado")
+    st.sidebar.info(f"Última modificación: {datetime.fromtimestamp(__import__('os').path.getmtime(NOMBRE_ARCHIVO)).strftime('%d/%m/%Y %H:%M:%S')}")
+    
+    if st.sidebar.button("🔄 Actualizar datos"):
+        st.rerun()
 
     # Detección de columnas
     def buscar_col(lista_posibles):
@@ -39,15 +54,23 @@ if archivo:
     c_mala = buscar_col(["PIEZA MALA KG", "MALA"])
     c_reba = buscar_col(["REBABA KG", "REBABA"])
     c_desp = buscar_col(["DESPERDICIO"])
+    c_supervisor = buscar_col(["SUPERVISOR", "SUPERV"])
+    c_cant_desp = buscar_col(["CANTIDAD GENERADA", "GENERADA"])
 
     if c_fecha:
         df[c_fecha] = pd.to_datetime(df[c_fecha])
         meses_dict = {1:"Enero", 2:"Febrero", 3:"Marzo", 4:"Abril", 5:"Mayo", 6:"Junio",
                       7:"Julio", 8:"Agosto", 9:"Septiembre", 10:"Octubre", 11:"Noviembre", 12:"Diciembre"}
         df["MES_NOMBRE"] = df[c_fecha].dt.month.map(meses_dict)
+        df["AÑO"] = df[c_fecha].dt.year
         st.sidebar.markdown("---")
-        mes_sel = st.sidebar.selectbox("Selecciona el Mes:", df["MES_NOMBRE"].unique())
-        df_filtrado = df[df["MES_NOMBRE"] == mes_sel].copy()
+        años_disponibles = list(range(2026, 2101))
+        año_sel = st.sidebar.selectbox("Selecciona el Año:", años_disponibles)
+        df_filtrado = df[df["AÑO"] == año_sel].copy()
+        meses_disponibles = ["Todos"] + list(meses_dict.values())
+        mes_sel = st.sidebar.selectbox("Selecciona el Mes:", meses_disponibles)
+        if mes_sel != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["MES_NOMBRE"] == mes_sel].copy()
     else:
         df_filtrado = df.copy()
 
@@ -100,10 +123,17 @@ if archivo:
             df_plot[c_fecha] = df_plot[c_fecha].dt.strftime('%d-%m-%Y')
             
             # Gráfica
-            fig = px.bar(df_plot, x=c_fecha, y=vars_sel, barmode="group", text_auto='.2f')
-            fig.update_traces(textfont_size=24, textposition="outside", cliponaxis=False)
-            fig.update_layout(height=500, margin=dict(t=50, b=0))
-            st.plotly_chart(fig, use_container_width=True)
+            fig = px.bar(df_plot, x=c_fecha, y=vars_sel, barmode="group")
+            fig.update_traces(textfont_size=26, textposition="outside", cliponaxis=False, texttemplate="%{y:,.2f}")
+            fig.update_layout(
+                height=800,
+                margin=dict(t=50, b=0),
+                font=dict(size=18),
+                xaxis=dict(title_font=dict(size=20), tickfont=dict(size=16)),
+                yaxis=dict(title_font=dict(size=20), tickfont=dict(size=16)),
+                hoverlabel=dict(font_size=20, font_family="Arial")
+            )
+            st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset", "modeBarButtonsToAdd": ["drawline", "drawopenpath", "eraseshape"]})
 
             # Tabla (Justo debajo de la gráfica)
             st.markdown("### 📋 Datos Detallados por Día")
@@ -128,5 +158,40 @@ if archivo:
             valor_desp = df_dia[c_desp].values[0] if c_desp else 0
             with d5: crear_tarjeta("Desperdicio", f"{valor_desp * 100:,.2f}" if valor_desp < 1 else f"{valor_desp:,.2f}", "#D32F2F", "%")
 
+    elif pagina == "🗑️ Análisis de Desperdicios" and not df_filtrado.empty:
+        st.subheader("🗑️ Análisis de Desperdicios por Supervisor")
+        df_con_datos = df_filtrado.dropna(subset=[c_fecha])
+        dias_procesados = len(df_con_datos)
+        st.info(f"📢 Desperdicio Generado en {dias_procesados} días procesados")
+
+        if c_supervisor and c_cant_desp:
+            df_desp = df_filtrado.groupby(c_supervisor)[c_cant_desp].sum().reset_index()
+            df_desp = df_desp.sort_values(c_cant_desp, ascending=False)
+
+            st.markdown("### 📊 Toneladas de Desperdicio por Supervisor")
+            fig_desp = px.bar(df_desp, x=c_supervisor, y=c_cant_desp, text_auto=',.2f', color=c_cant_desp,
+                              color_continuous_scale="Reds", labels={c_cant_desp: "Toneladas (Tn)"})
+            fig_desp.update_traces(textfont_size=24, textposition="outside")
+            fig_desp.update_layout(
+                height=600,
+                font=dict(size=18),
+                xaxis=dict(title_font=dict(size=20), tickfont=dict(size=16)),
+                yaxis=dict(title_font=dict(size=20), tickfont=dict(size=16)),
+                hoverlabel=dict(font_size=18)
+            )
+            st.plotly_chart(fig_desp, use_container_width=True)
+
+            st.markdown("### 📋 Detalle por Supervisor (Toneladas)")
+            df_desp_tabla = df_desp.copy()
+            df_desp_tabla["Tn"] = df_desp_tabla[c_cant_desp].apply(lambda x: f"{x:,.2f}")
+            df_desp_tabla = df_desp_tabla.drop(columns=[c_cant_desp]).rename(columns={"Tn": c_cant_desp})
+            st.dataframe(df_desp_tabla, use_container_width=True)
+
+            supervisor_top = df_desp.iloc[0][c_supervisor] if not df_desp.empty else "N/A"
+            cantidad_top = df_desp.iloc[0][c_cant_desp] if not df_desp.empty else 0
+            st.success(f"🏆 El supervisor con más desperdicio es: **{supervisor_top}** con **{cantidad_top:,.2f} Tn**")
+        else:
+            st.warning("⚠️ No se encontraron las columnas de supervisor o cantidad de desperdicio en el Excel")
+
 else:
-    st.info("👋 Sube el archivo Excel para ver el Dashboard restaurado.")
+    st.error(f"⚠️ No se encontró el archivo **{NOMBRE_ARCHIVO}** en la carpeta del proyecto.")

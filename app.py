@@ -193,5 +193,5 @@ if archivo_encontrado:
         else:
             st.warning("⚠️ No se encontraron las columnas de supervisor o cantidad de desperdicio en el Excel")
 
-else:
-    st.error(f"⚠️ No se encontró el archivo **{NOMBRE_ARCHIVO}** en la carpeta del proyecto.")
+    else:
+        st.error(f"⚠️ No se encontró el archivo **{NOMBRE_ARCHIVO}** en la carpeta del proyecto.")

@@ -30,7 +30,7 @@ st.markdown("---")
 
 # 2. CARGA DE DATOS AUTOMÁTICA
 st.sidebar.title("Menú Principal")
-pagina = st.sidebar.radio("Ir a:", ["📈 Dashboard General", "🗑️ Análisis de Desperdicios"])
+pagina = st.sidebar.radio("Ir a:", ["📈 Dashboard General", "🗑️ Análisis de Desperdicios", "⚙️ Análisis de Eficiencia"])
 
 df, archivo_encontrado = cargar_datos()
 
@@ -192,6 +192,73 @@ if archivo_encontrado:
             st.success(f"😢 El supervisor con más desperdicio es: **{supervisor_top}** con **{cantidad_top:,.2f} Tn**")
         else:
             st.warning("⚠️ No se encontraron las columnas de supervisor o cantidad de desperdicio en el Excel")
+
+    elif pagina == "⚙️ Análisis de Eficiencia" and not df_filtrado.empty:
+        st.subheader("⚙️ Análisis de Eficiencia de Máquinas")
+        st.info("📌 Esta sección analiza el rendimiento de las máquinas basándose en los datos del Excel")
+
+        c_maquina = buscar_col(["MAQUINA", "MÁQUINA", "MAQ"])
+        c_eficiencia = buscar_col(["EFICIENCIA", "RENDIMIENTO", "%"])
+
+        if c_maquina and c_eficiencia:
+            df_ef = df_filtrado.dropna(subset=[c_maquina, c_eficiencia])
+            
+            if not df_ef.empty:
+                df_maq = df_ef.groupby(c_maquina)[c_eficiencia].mean().reset_index()
+                df_maq = df_maq.sort_values(c_eficiencia, ascending=False)
+
+                col_ef1, col_ef2 = st.columns(2)
+
+                with col_ef1:
+                    st.markdown("### 🏆 Top 6 Máquinas con Mejor Eficiencia")
+                    df_mejor = df_maq.head(6)
+                    fig_mejor = px.bar(df_mejor, x=c_eficiencia, y=c_maquina, orientation='h',
+                                      text_auto='.1f', color=c_eficiencia, color_continuous_scale="Greens")
+                    fig_mejor.update_traces(textfont_size=16)
+                    fig_mejor.update_layout(height=400, font=dict(size=14))
+                    st.plotly_chart(fig_mejor, use_container_width=True)
+
+                with col_ef2:
+                    st.markdown("### ⚠️ Top 10 Máquinas con Peor Eficiencia")
+                    df_peor = df_maq.tail(10).sort_values(c_eficiencia)
+                    fig_peor = px.bar(df_peor, x=c_eficiencia, y=c_maquina, orientation='h',
+                                     text_auto='.1f', color=c_eficiencia, color_continuous_scale="Reds")
+                    fig_peor.update_traces(textfont_size=16)
+                    fig_peor.update_layout(height=400, font=dict(size=14))
+                    st.plotly_chart(fig_peor, use_container_width=True)
+
+                st.markdown("### 📋 Tabla Completa de Eficiencia")
+                df_tabla_ef = df_maq.copy()
+                df_tabla_ef["EFICIENCIA %"] = df_tabla_ef[c_eficiencia].apply(lambda x: f"{x:.2f}%")
+                df_tabla_ef = df_tabla_ef.drop(columns=[c_eficiencia]).rename(columns={"EFICIENCIA %": c_eficiencia})
+                st.dataframe(df_tabla_ef, use_container_width=True)
+            else:
+                st.warning("⚠️ No hay datos suficientes para analizar eficiencia")
+        else:
+            st.warning("⚠️ Para usar esta sección necesitas agregar al Excel las columnas: MAQUINA y EFICIENCIA")
+            st.markdown("""
+            ### 📝 Estructura esperada en Excel:
+            | FECHA | MAQUINA | TON EFECTIVAS | PIEZA MALA KG | REBABA KG | ... | EFICIENCIA |
+            |-------|---------|---------------|---------------|-----------|-----|-------------|
+            |2026-05-01| MAQ-01 | 1500 | 50 | 30 | ... | 85.5% |
+            """)
+            st.markdown("### 🎨 Vista Previa (Datos de Ejemplo)")
+            
+            import numpy as np
+            np.random.seed(42)
+            ejemplo = pd.DataFrame({
+                "MÁQUINA": [f"MAQ-{i:02d}" for i in range(1, 21)],
+                "EFICIENCIA (%)": np.random.uniform(70, 98, 20)
+            })
+            ejemplo = ejemplo.sort_values("EFICIENCIA (%)", ascending=False)
+            
+            col_prev1, col_prev2 = st.columns(2)
+            with col_prev1:
+                st.markdown("#### 🏆 Top 6 Mejor Eficiencia")
+                st.dataframe(ejemplo.head(6), use_container_width=True)
+            with col_prev2:
+                st.markdown("#### ⚠️ Top 10 Peor Eficiencia")
+                st.dataframe(ejemplo.tail(10).sort_values("EFICIENCIA (%)"), use_container_width=True)
 
     else:
         st.error(f"⚠️ No se encontró el archivo **{NOMBRE_ARCHIVO}** en la carpeta del proyecto.")
